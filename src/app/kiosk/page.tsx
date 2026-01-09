@@ -32,13 +32,17 @@ export default function RegisterKiosk() {
     e.preventDefault();
     setLoading(true);
 
-    // Initial insert with name (if provided) or a placeholder
+    const now = new Date().toISOString(); // Current timestamp for the report clocks
+
+    // Initial insert with name and the INITIAL Window 1 Waiting Clock
     const { data: initialData, error: insertError } = await supabase
       .from("tickets")
       .insert([{ 
         client_name: name.trim() || "PENDING", 
         is_priority: isPriority,
-        status: 'waiting'
+        status: 'waiting',
+        current_window: 1, // Explicitly start at Window 1
+        w1_wait_start: now  // THE CRITICAL FIX: Starts the 'Waiting Time' report clock
       }])
       .select()
       .single();
@@ -130,7 +134,7 @@ export default function RegisterKiosk() {
               <p className="text-xs font-black uppercase tracking-widest opacity-80 mb-2">Ticket Issued</p>
               <h3 className="text-[10rem] font-black leading-none my-4">#{issuedTicket.ticket_number}</h3>
               <p className="font-bold text-2xl uppercase tracking-tighter mb-8">{issuedTicket.client_name}</p>
-              <p className="bg-white/10 px-6 py-2 rounded-full text-sm font-bold">Please proceed to the waiting area</p>
+              <p className="bg-white/10 px-6 py-2 rounded-full text-sm font-bold">Please proceed to Window 1 (Screening)</p>
             </div>
           )}
         </div>
