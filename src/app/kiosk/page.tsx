@@ -32,43 +32,30 @@ export default function RegisterKiosk() {
     e.preventDefault();
     setLoading(true);
 
-    const now = new Date().toISOString(); // Current timestamp for the report clocks
+    const now = new Date().toISOString();
 
-    // Initial insert with name and the INITIAL Window 1 Waiting Clock
-    const { data: initialData, error: insertError } = await supabase
+    /**
+     * SIMPLIFIED LOGIC:
+     * We no longer calculate the ticket number or the 'Client No.' string here.
+     * The Database Trigger handles the 'JAN13-01' format automatically.
+     */
+    const { data, error: insertError } = await supabase
       .from("tickets")
       .insert([{ 
-        client_name: name.trim() || "PENDING", 
+        client_name: name.trim() || "Anonymous", 
         is_priority: isPriority,
         status: 'waiting',
-        current_window: 1, // Explicitly start at Window 1
-        w1_wait_start: now  // THE CRITICAL FIX: Starts the 'Waiting Time' report clock
+        current_window: 1,
+        w1_wait_start: now
       }])
       .select()
       .single();
 
-    if (!insertError && initialData) {
-      let finalName = name.trim();
-      
-      // If name was vacant, update the record to "Client No. XXX"
-      if (!finalName) {
-        const formattedNum = String(initialData.ticket_number).padStart(3, '0');
-        finalName = `Client No. ${formattedNum}`;
-        
-        const { data: updatedData } = await supabase
-          .from("tickets")
-          .update({ client_name: finalName })
-          .eq("id", initialData.id)
-          .select()
-          .single();
-        
-        setIssuedTicket(updatedData);
-      } else {
-        setIssuedTicket(initialData);
-      }
-
+    if (!insertError && data) {
+      setIssuedTicket(data);
       setName("");
       setIsPriority(false);
+      // Auto-hide the success overlay after 8 seconds
       setTimeout(() => setIssuedTicket(null), 8000);
     } else {
       alert("System Error: " + (insertError?.message || "Unknown error"));
@@ -78,19 +65,25 @@ export default function RegisterKiosk() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans flex flex-col select-none">
+      {/* BRANDING HEADER */}
       <div className="bg-blue-900 p-6 flex justify-between items-center shadow-lg border-b-4 border-yellow-500">
         <div className="flex items-center gap-4">
           <img src="/lgu-logo.png" alt="Logo" className="w-16 h-16 object-contain" />
-          <h1 className="text-white text-3xl font-black uppercase tracking-tighter">Municipality of Pililla</h1>
+          <h1 className="text-white text-3xl font-black uppercase tracking-tighter text-center md:text-left">
+            Municipality of Pililla
+          </h1>
         </div>
-        <img src="/better-pililla.png" alt="Brand" className="h-10 opacity-80" />
+        <img src="/better-pililla.png" alt="Brand" className="h-10 opacity-80 hidden md:block" />
       </div>
 
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-10 p-10 max-w-7xl mx-auto w-full">
+        {/* REGISTRATION FORM */}
         <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-200 flex flex-col justify-center relative overflow-hidden">
           <div className="mb-8">
             <h2 className="text-3xl font-black text-blue-950 uppercase tracking-tight">Kiosk Registration</h2>
-            <p className="text-slate-500 font-bold uppercase text-xs tracking-widest mt-1">Tap 'Get Ticket' to join the queue</p>
+            <p className="text-slate-500 font-bold uppercase text-xs tracking-widest mt-1">
+              Join the queue for Verification (Window 1)
+            </p>
           </div>
           
           <form onSubmit={handleRegister} className="space-y-6">
@@ -105,6 +98,7 @@ export default function RegisterKiosk() {
               />
             </div>
 
+            {/* PRIORITY SELECTION */}
             <div 
               onClick={() => setIsPriority(!isPriority)}
               className={`p-6 rounded-3xl border-4 cursor-pointer transition-all duration-300 flex items-center gap-6 ${
@@ -128,26 +122,39 @@ export default function RegisterKiosk() {
             </button>
           </form>
 
+          {/* SUCCESS OVERLAY (Shows JAN13-01 format) */}
           {issuedTicket && (
             <div className="absolute inset-0 bg-green-600 text-white flex flex-col items-center justify-center p-10 text-center animate-in fade-in duration-300 z-50">
               <div className="bg-white/20 w-24 h-24 rounded-full flex items-center justify-center mb-6 text-5xl font-black">✓</div>
-              <p className="text-xs font-black uppercase tracking-widest opacity-80 mb-2">Ticket Issued</p>
-              <h3 className="text-[10rem] font-black leading-none my-4">#{issuedTicket.ticket_number}</h3>
-              <p className="font-bold text-2xl uppercase tracking-tighter mb-8">{issuedTicket.client_name}</p>
-              <p className="bg-white/10 px-6 py-2 rounded-full text-sm font-bold">Please proceed to Window 1 (Screening)</p>
+              <p className="text-xs font-black uppercase tracking-widest opacity-80 mb-2">Ticket Issued Successfully</p>
+              <h3 className="text-[7rem] font-black leading-none my-4 tabular-nums">
+                {issuedTicket.ticket_number}
+              </h3>
+              <p className="font-bold text-2xl uppercase tracking-tighter mb-8 italic">
+                {issuedTicket.client_name}
+              </p>
+              <p className="bg-white/10 px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest">
+                Please proceed to Window 1
+              </p>
             </div>
           )}
         </div>
 
+        {/* RECENT TICKETS LIST */}
         <div className="flex flex-col py-10">
-          <h2 className="text-xs font-black text-slate-400 mb-6 uppercase tracking-[0.2em] text-center">Recent Tickets</h2>
+          <h2 className="text-xs font-black text-slate-400 mb-6 uppercase tracking-[0.2em] text-center">Recent Activity</h2>
           <div className="space-y-4">
             {todayTickets.map((t) => (
               <div key={t.id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex justify-between items-center transition hover:shadow-md">
                 <div className="flex items-center gap-6">
-                  <span className="text-3xl font-black text-blue-600">#{t.ticket_number}</span>
+                  {/* Now displays the JAN13-01 format here as well */}
+                  <span className="text-xl font-black text-blue-600 tabular-nums">
+                    {t.ticket_number}
+                  </span>
                   <div>
-                    <span className="font-black text-slate-800 uppercase text-sm block tracking-tight">{t.client_name}</span>
+                    <span className="font-black text-slate-800 uppercase text-sm block tracking-tight">
+                      {t.client_name}
+                    </span>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                         {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
@@ -158,9 +165,16 @@ export default function RegisterKiosk() {
                 )}
               </div>
             ))}
+            {todayTickets.length === 0 && (
+              <p className="text-center text-slate-300 font-bold uppercase py-20 italic">No tickets issued yet today</p>
+            )}
           </div>
         </div>
       </main>
+      
+      <footer className="p-6 text-center">
+        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">Municipality of Pililla Service Portal • 2026</p>
+      </footer>
     </div>
   );
 }
